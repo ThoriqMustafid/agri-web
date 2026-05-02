@@ -19,13 +19,13 @@ const Footer = ({ darkMode }) => {
             Agri-Smart
           </span>
           <p className="text-[10px] uppercase tracking-wider font-medium opacity-70">
-            by Kelompok Al-Jazari
+           
           </p>
         </div>
       </div>
 
       <p className="text-sm text-center max-w-2xl mb-8 leading-relaxed">
-        © 2024 Agri-Smart. Dikembangkan dengan penuh amanah untuk ketahanan pangan Indonesia.
+        © 2026 Agri-Smart. Dikembangkan dengan penuh amanah untuk ketahanan pangan Indonesia.
       </p>
 
       {/* Social Icons - Menggunakan SVG Manual */}
