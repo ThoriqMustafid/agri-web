@@ -24,7 +24,7 @@ const TEAM_MEMBERS = [
   },
   {
     name: "Thoriq M Ahyan",
-    role: "Asisten Engineer",
+    role: "Assistant Engineer",
     icon: Code,
     desc: "Mendukung pengembangan sistem dengan membantu implementasi teknis, penulisan kode, serta kolaborasi dengan Lead engineer.",
   },

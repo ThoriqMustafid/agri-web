@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   Activity, Droplets, Thermometer, Wind, Zap, Power,
@@ -9,8 +9,8 @@ import {
 function ProfessionalDashboard() {
   const [activeTab, setActiveTab] = useState("overview");
   const navigate = useNavigate();
+  const wsRef = useRef(null);
 
-  // 1. State untuk menampung data riil dari ESP32
   const [sensorData, setSensorData] = useState({
     ph: 0,
     ec: 0,
@@ -23,42 +23,59 @@ function ProfessionalDashboard() {
     waitingApproval: 0,
     stats: { nutrient: 0, totalML: 0, phUp: 0, phDown: 0 }
   });
-  
-  // State untuk status koneksi WebSocket
   const [isConnected, setIsConnected] = useState(false);
 
-  // 2. Membuka koneksi WebSocket ke ESP32 saat komponen dimuat
   useEffect(() => {
-    // GANTI IP INI SESUAI DENGAN IP ADDRESS ESP32 KAMU (Misal: IP SoftAP 192.168.4.1 atau IP dari Router WiFi)
-    const ws = new WebSocket("ws://192.168.4.1:81/");
+    let reconnectTimer;
 
-    ws.onopen = () => {
-      console.log("Connected to ESP32 WebSocket");
-      setIsConnected(true);
+    const connectWebSocket = () => {
+      const wsUrl = import.meta.env.VITE_WS_URL || "ws://192.168.4.1:81/";
+      const ws = new WebSocket(wsUrl);
+      wsRef.current = ws;
+
+      ws.onopen = () => {
+        console.log("Connected to ESP32 WebSocket");
+        setIsConnected(true);
+      };
+
+      ws.onmessage = (event) => {
+        try {
+          setSensorData(JSON.parse(event.data));
+        } catch (e) {
+          console.error("Error parsing data", e);
+        }
+      };
+
+      ws.onclose = () => {
+        console.log("Disconnected, retrying in 3s...");
+        setIsConnected(false);
+        reconnectTimer = setTimeout(connectWebSocket, 3000); 
+      };
+      
+      ws.onerror = (err) => {
+        ws.close(); 
+      };
     };
 
-    ws.onclose = () => {
-      console.log("Disconnected from ESP32 WebSocket");
-      setIsConnected(false);
-    };
+    connectWebSocket();
 
-    // 4. Tangkap pesan JSON dari ESP32 dan masukkan ke dalam state
-    ws.onmessage = (event) => {
-      try {
-        const data = JSON.parse(event.data);
-        setSensorData(data); // Memperbarui layar secara otomatis
-      } catch (e) {
-        console.error("Error parsing WebSocket data:", e);
-      }
-    };
-
-    // Bersihkan koneksi jika komponen ditutup
     return () => {
-      ws.close();
+      clearTimeout(reconnectTimer);
+      if (wsRef.current) wsRef.current.close();
     };
   }, []);
 
-  // 3. Mengganti variabel stats yang hardcoded menjadi dinamis dari sensorData
+  const handleTogglePump = (pumpTarget) => {
+    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+      wsRef.current.send(JSON.stringify({
+        action: "toggle_pump",
+        target: pumpTarget
+      }));
+    } else {
+      alert("WebSocket terputus. Tunggu hingga online kembali.");
+    }
+  };
+
   const stats = [
     { label: "pH Level", value: sensorData.ph.toFixed(2), change: "Real-time", trend: "neutral", icon: <Activity className="text-emerald-500" />, unit: "pH" },
     { label: "Nutrisi (EC)", value: sensorData.ec.toFixed(0), change: "Real-time", trend: "neutral", icon: <Zap className="text-yellow-500" />, unit: "µS/cm" },
@@ -115,7 +132,6 @@ function ProfessionalDashboard() {
           </div>
 
           <div className="flex items-center gap-6">
-             {/* Indikator Koneksi WebSocket */}
              <div className={`flex items-center gap-2 px-3 py-1 border rounded-full ${isConnected ? 'bg-emerald-500/10 border-emerald-500/20' : 'bg-red-500/10 border-red-500/20'}`}>
               <span className={`w-2 h-2 rounded-full animate-pulse ${isConnected ? 'bg-emerald-500' : 'bg-red-500'}`}></span>
               <span className={`text-xs font-bold uppercase tracking-widest ${isConnected ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'}`}>
@@ -137,11 +153,10 @@ function ProfessionalDashboard() {
               <p className="text-slate-500">Mode: {sensorData.mode}</p>
             </div>
             <button className="flex items-center gap-2 px-4 py-2 bg-white dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-xl font-semibold shadow-sm">
-              <Calendar size={18}/> May 2, 2026
+              <Calendar size={18}/> May 3, 2026
             </button>
           </div>
 
-          {/* Alert jika menunggu persetujuan (approval) */}
           {sensorData.waitingApproval === 1 && (
              <div className="mb-6 p-4 bg-yellow-100 dark:bg-yellow-900 border border-yellow-300 dark:border-yellow-700 rounded-2xl flex items-center gap-3">
                <AlertCircle className="text-yellow-600 dark:text-yellow-400" size={24}/>
@@ -193,7 +208,6 @@ function ProfessionalDashboard() {
             </div>
 
             <div className="space-y-8">
-              {/* Statistik Dosis Pompa */}
               <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-white/10 p-8 rounded-3xl shadow-sm">
                 <h3 className="text-xl font-bold mb-6 flex items-center gap-2"><Database size={20}/> Pump Statistics</h3>
                 <div className="space-y-4">
@@ -216,9 +230,9 @@ function ProfessionalDashboard() {
                 <h3 className="text-xl font-bold mb-6 flex items-center gap-2"><Settings size={20}/> Status Aktuator</h3>
                 <div className="space-y-4">
                   {[
-                    { name: "Pompa Nutrisi A+B", status: sensorData.nutrient === 1 ? 'Active' : 'Idle' },
-                    { name: "Pompa pH Up", status: sensorData.phUp === 1 ? 'Active' : 'Idle' },
-                    { name: "Pompa pH Down", status: sensorData.phDown === 1 ? 'Active' : 'Idle' },
+                    { name: "Pompa Nutrisi A+B", status: sensorData.nutrient === 1 ? 'Active' : 'Idle', target: "nutrient" },
+                    { name: "Pompa pH Up", status: sensorData.phUp === 1 ? 'Active' : 'Idle', target: "phUp" },
+                    { name: "Pompa pH Down", status: sensorData.phDown === 1 ? 'Active' : 'Idle', target: "phDown" },
                   ].map((device, i) => (
                     <div key={i} className="flex items-center justify-between p-4 bg-slate-50 dark:bg-white/5 border border-slate-100 dark:border-white/5 rounded-2xl">
                       <span className="font-bold text-sm">{device.name}</span>
@@ -226,7 +240,10 @@ function ProfessionalDashboard() {
                         <span className={`text-[10px] font-bold uppercase tracking-widest ${device.status === 'Active' ? 'text-emerald-500' : 'text-slate-400'}`}>
                           {device.status}
                         </span>
-                        <div className="w-10 h-5 bg-slate-200 dark:bg-white/10 rounded-full relative cursor-pointer">
+                        <div 
+                          onClick={() => handleTogglePump(device.target)}
+                          className="w-10 h-5 bg-slate-200 dark:bg-white/10 rounded-full relative cursor-pointer"
+                        >
                           <div className={`absolute top-1 w-3 h-3 rounded-full transition-all ${device.status === 'Active' ? 'right-1 bg-emerald-500' : 'left-1 bg-slate-400'}`}></div>
                         </div>
                       </div>
