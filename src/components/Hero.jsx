@@ -29,7 +29,7 @@ function Hero() {
         </div>
 
         <div className="flex flex-wrap justify-center gap-2 mb-6">
-          {["Kelompok Al-Jazari", "TDA Sekolah Impian"].map((label) => (
+          {["Team Agri Smart"].map((label) => (
             <span
               key={label}
               className="px-4 py-1.5 bg-emerald-500/10 border border-emerald-500/20 rounded-full text-sm font-semibold text-emerald-600 dark:text-emerald-400"
